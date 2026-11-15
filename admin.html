@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CloudVault Admin · Secure Controller</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --surface-2: #edf1f9;
+    --line: rgba(15, 23, 42, 0.11);
+    --text: #0f172a;
+    --muted: #5b6478;
+    --brand: #2563eb;
+    --brand-hi: #1d4ed8;
+    --emerald: #059669;
+    --amber: #b45309;
+    --radius: 20px;
+    --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans);
+    font-size: 15px; line-height: 1.45; padding-bottom: calc(env(safe-area-inset-bottom) + 96px);
+  }
+
+  .pin-screen {
+    position: fixed; inset: 0; z-index: 999; background: #0b0f19; color: #f8fafc;
+    display: grid; place-items: center; padding: 20px;
+  }
+  .pin-box {
+    width: 100%; max-width: 360px; background: #131a2a; border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 24px; padding: 28px 22px; text-align: center;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+  .pin-icon {
+    width: 56px; height: 56px; border-radius: 18px; margin: 0 auto 14px;
+    background: rgba(37, 99, 235, 0.2); border: 1px solid rgba(96, 165, 250, 0.4);
+    display: grid; place-items: center; color: #60a5fa;
+  }
+  .pin-box h2 { margin: 0 0 6px; font-size: 1.35rem; font-weight: 800; }
+  .pin-box p { margin: 0 0 18px; font-size: 0.85rem; color: #94a3b8; }
+  .pin-input {
+    width: 100%; height: 54px; border-radius: 14px; border: 1.5px solid rgba(255,255,255,0.18);
+    background: #1c253b; color: #fff; font-size: 1.5rem; font-weight: 800;
+    letter-spacing: 0.35em; text-align: center; font-family: monospace;
+  }
+  .pin-input:focus { outline: none; border-color: #3b82f6; }
+  .pin-btn {
+    width: 100%; height: 50px; margin-top: 14px; border-radius: 14px; border: 0;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;
+    font-weight: 800; font-size: 0.98rem; cursor: pointer;
+  }
+  .pin-err { color: #f87171; font-size: 0.82rem; font-weight: 700; margin-top: 10px; min-height: 1.2em; }
+
+  .wrap { max-width: 960px; margin: 0 auto; padding: 18px 16px 0; }
+  .dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(255,255,255,0.96); border-top: 1px solid var(--line); backdrop-filter: blur(12px);
+  }
+  .dock-item {
+    min-height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    border-radius: 14px; color: var(--muted); font-size: 0.74rem; font-weight: 700; border: 0; background: none; cursor: pointer;
+  }
+  .dock-item[aria-current="page"] { color: var(--brand-hi); background: var(--surface-2); }
+  .dock-item svg { width: 20px; height: 20px; }
+
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 10px; }
+  .top h1 { margin: 0; font-size: 1.45rem; font-weight: 800; }
+  .top p { margin: 2px 0 0; color: var(--muted); font-size: 0.84rem; }
+  .badge-live {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px; background: rgba(5, 150, 105, 0.1);
+    border: 1px solid rgba(5, 150, 105, 0.3); color: var(--emerald); font-size: 0.76rem; font-weight: 800; white-space: nowrap;
+  }
+  .dot-live {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--emerald);
+    animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse { 0% { opacity: 1; transform: scale(0.9); } 50% { opacity: 0.4; transform: scale(1.3); } 100% { opacity: 1; transform: scale(0.9); } }
+
+  .bento { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04); margin-bottom: 12px;
+  }
+  .bento .card { margin-bottom: 0; }
+  .span2 { grid-column: span 2; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .card-title { margin: 0; font-size: 0.76rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .num { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
+
+  .top-seller-card {
+    background: linear-gradient(145deg, #eff6ff, #f0fdf4);
+    border: 1.5px solid rgba(37, 99, 235, 0.25);
+  }
+  .top-seller-name { font-size: 1.12rem; font-weight: 800; color: var(--text); margin: 4px 0; }
+  .top-seller-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 11px 0; border-top: 1px solid var(--line);
+  }
+  .stat-row:first-child { border-top: 0; padding-top: 2px; }
+  .stat-rank {
+    width: 24px; height: 24px; border-radius: 8px; background: var(--surface-2);
+    display: inline-grid; place-items: center; font-size: 0.74rem; font-weight: 800; color: var(--brand-hi); flex-shrink: 0;
+  }
+  .stat-rank.gold { background: #fef3c7; color: #b45309; }
+  .bar-bg { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 6px; }
+  .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--emerald)); }
+
+  .form { display: grid; gap: 12px; }
+  .field { display: grid; gap: 6px; font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+  .field input, .field textarea, .field select {
+    width: 100%; font: inherit; font-size: 0.95rem; font-weight: 500; color: var(--text);
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; min-height: 46px;
+  }
+  .seg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .seg-btn {
+    min-height: 44px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line);
+    font-weight: 700; font-size: 0.85rem; color: var(--muted); cursor: pointer;
+  }
+  .seg-btn[aria-pressed="true"] { background: var(--brand); color: #fff; border-color: transparent; }
+
+  .btn-main {
+    min-height: 50px; border-radius: 16px; background: linear-gradient(155deg, #2563eb, #1d4ed8);
+    color: #fff; font-weight: 800; font-size: 0.95rem; border: 0; cursor: pointer; padding: 0 18px;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24);
+  }
+  .btn-alt {
+    min-height: 38px; padding: 0 12px; border-radius: 12px; background: var(--surface-2);
+    border: 1px solid var(--line); font-weight: 700; font-size: 0.8rem; color: var(--text); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+  }
+  .btn-primary-sm { background: var(--brand); color: #fff; border-color: transparent; }
+  .btn-emerald-sm { background: var(--emerald); color: #fff; border-color: transparent; }
+  .btn-danger-sm { background: rgba(239, 68, 68, 0.08); color: #b91c1c; border-color: rgba(239, 68, 68, 0.25); }
+
+  .drop { display: grid; gap: 6px; padding: 14px; border-radius: 16px; border: 1.5px dashed rgba(37, 99, 235, 0.35); background: var(--surface-2); }
+  .drop span { font-weight: 700; color: var(--text); font-size: 0.9rem; }
+  .drop small { font-size: 0.76rem; color: var(--muted); }
+
+  .result-box { border: 1.5px solid rgba(5, 150, 105, 0.45); background: #f0fdf4; }
+  .code-box {
+    padding: 12px; border-radius: 12px; background: #fff; border: 1px solid var(--line);
+    font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--brand-hi); word-break: break-all; margin: 8px 0;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li { padding: 14px 0; border-top: 1px solid var(--line); }
+  .rows li:first-child { border-top: 0; padding-top: 0; }
+  .row-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .pill { padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
+  .pill.paid { background: rgba(37, 99, 235, 0.1); color: var(--brand-hi); }
+  .pill.free { background: rgba(5, 150, 105, 0.1); color: var(--emerald); }
+  .pill.gold { background: #fef3c7; color: #b45309; }
+  .msg { font-size: 0.84rem; font-weight: 700; color: var(--emerald); min-height: 1.2em; margin: 0; }
+  .msg.err { color: #b91c1c; }
+  .hint { font-size: 0.78rem; color: var(--muted); margin: 4px 0 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="pin-screen" id="pin-screen">
+  <form class="pin-box" id="pin-form">
+    <div class="pin-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    </div>
+    <h2>Admin Panel Locked</h2>
+    <p>Enter your 4-digit security PIN (4055)</p>
+    <input type="password" inputmode="numeric" maxlength="6" class="pin-input" id="pin-input" placeholder="••••" autocomplete="off" required>
+    <button type="submit" class="pin-btn">Unlock Admin Panel</button>
+    <div class="pin-err" id="pin-err"></div>
+  </form>
+</div>
+
+<nav class="dock">
+  <button type="button" class="dock-item" data-tab="dash" aria-current="page">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></svg>
+    <span>Admin Home</span>
+  </button>
+  <button type="button" class="dock-item" data-tab="vault">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3V9z"/></svg>
+    <span>Create Links</span>
+  </button>
+  <button type="button" class="dock-item" data-tab="settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span>Setup & PIN</span>
+  </button>
+</nav>
+
+<main class="wrap" id="app"></main>
+
+<script>
+  const KEYS = {
+    items: "cv_admin_items_v5",
+    settings: "cv_admin_settings_v5",
+    sales: "cv_realtime_sales_v2"
+  };
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const inr = (n) => "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
+  const IS_LOCAL_FILE = !/^https?:$/.test(location.protocol);
+
+  function readJson(k, fb) { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch (e) { return fb; } }
+  function writeJson(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+
+  function getSettings() {
+    const s = readJson(KEYS.settings, {});
+    return {
+      brand: s.brand || "CloudVault",
+      owner: s.owner || "Ranjit",
+      adminPin: String(s.adminPin || "4055").trim(),
+      whatsapp: String(s.whatsapp || "9421351153").trim(),
+      viewerBaseUrl: String(s.viewerBaseUrl || "").trim(),
+      rzpKey: String(s.rzpKey || "rzp_test_TzKlCGvzMHyC8Y").trim(),
+      webhookUrl: String(s.webhookUrl || "").trim()
+    };
+  }
+
+  (function initPin() {
+    if (sessionStorage.getItem("cv_admin_unlocked") === "1") {
+      $("#pin-screen").hidden = true;
+    }
+    $("#pin-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const entered = $("#pin-input").value.trim();
+      const correct = getSettings().adminPin;
+      if (entered === correct) {
+        sessionStorage.setItem("cv_admin_unlocked", "1");
+        $("#pin-screen").hidden = true;
+      } else {
+        $("#pin-err").textContent = "Wrong PIN! Try again.";
+        $("#pin-input").value = "";
+        $("#pin-input").focus();
+      }
+    });
+  })();
+
+  function openVaultDB() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open("cv-unlimited-vault", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("blobs");
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+  }
+  async function saveBlob(id, file) {
+    const db = await openVaultDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction("blobs", "readwrite");
+      tx.objectStore("blobs").put(file, id);
+      tx.oncomplete = () => { db.close(); res(true); };
+      tx.onerror = () => { db.close(); rej(tx.error); };
+    });
+  }
+  async function removeBlob(id) {
+    try {
+      const db = await openVaultDB();
+      const tx = db.transaction("blobs", "readwrite");
+      tx.objectStore("blobs").delete(id);
+      tx.oncomplete = () => db.close();
+    } catch (e) {}
+  }
+
+  function b64uEnc(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    let bin = "";
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function buildPayload(item) {
+    const st = getSettings();
+    return {
+      id: item.id,
+      t: item.title,
+      c: item.category,
+      d: item.desc || "",
+      u: item.url || "",
+      th: item.thumb || "",
+      p: item.access === "paid" ? Number(item.price) : 0,
+      k: item.access === "paid" ? st.rzpKey : "",
+      wa: st.whatsapp,
+      b: st.brand,
+      wh: st.webhookUrl || ""
+    };
+  }
+
+  function generateSeparateViewerLink(item) {
+    const st = getSettings();
+    let base = st.viewerBaseUrl;
+    if (!base) {
+      if (!IS_LOCAL_FILE) {
+        base = location.href.split("#")[0].split("?")[0].replace(/[^/]*$/, "index.html");
+      } else {
+        base = "https://your-site.netlify.app/index.html";
+      }
+    }
+    const sep = base.includes("?") ? "&" : "?";
+    return `${base}${sep}play=${b64uEnc(buildPayload(item))}`;
+  }
+
+  function timeAgo(ts) {
+    const diff = Math.max(1, Math.floor((Date.now() - Number(ts || 0)) / 1000));
+    if (diff < 60) return diff + "s ago";
+    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+    return new Date(ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  }
+
+  let remoteSales = [];
+  function getAllSales() {
+    const local = readJson(KEYS.sales, []);
+    const map = new Map();
+    [...local, ...remoteSales].forEach((s) => {
+      if (s && s.txId) map.set(s.txId, s);
+    });
+    return Array.from(map.values()).sort((a, b) => Number(b.at || 0) - Number(a.at || 0));
+  }
+
+  async function pullRemoteSales() {
+    const st = getSettings();
+    if (!st.webhookUrl || !/^https:\/\//i.test(st.webhookUrl)) return;
+    try {
+      const res = await fetch(st.webhookUrl);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        remoteSales = data;
+        if (currentTab === "dash") renderDashOnly();
+      }
+    } catch (e) {}
+  }
+
+  let currentTab = "dash";
+  let sourceType = "cloud";
+  let accessType = "paid";
+  let createdItem = null;
+
+  function renderDash() {
+    const st = getSettings();
+    const items = readJson(KEYS.items, []);
+    const sales = getAllSales();
+
+    const totalBytes = items.reduce((a, b) => a + (Number(b.size) || 0), 0);
+    const fmtSize = totalBytes > 1073741824 ? (totalBytes / 1073741824).toFixed(2) + " GB" : (totalBytes / 1048576).toFixed(1) + " MB";
+
+    const totalRevenue = sales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    const totalPurchases = sales.length;
+
+    const statsMap = {};
+    items.forEach((it) => {
+      statsMap[it.id] = { id: it.id, title: it.title, price: Number(it.price) || 0, count: 0, revenue: 0 };
+    });
+    sales.forEach((s) => {
+      const key = s.fileId || s.title;
+      if (!statsMap[key]) {
+        statsMap[key] = { id: key, title: s.title || "Untitled File", price: Number(s.amount) || 0, count: 0, revenue: 0 };
+      }
+      statsMap[key].count += 1;
+      statsMap[key].revenue += Number(s.amount) || 0;
+    });
+
+    const rankedFiles = Object.values(statsMap).sort((a, b) => b.count - a.count || b.revenue - a.revenue);
+    const topFile = rankedFiles.find((f) => f.count > 0) || null;
+    const maxCount = topFile ? topFile.count : 1;
+
+    const topSellerHtml = topFile
+      ? `
+        <div class="card top-seller-card">
+          <div class="card-head">
+            <span class="card-title" style="color:var(--brand-hi)">🏆 Most Purchased File (Top Seller)</span>
+            <span class="pill gold">#1 Trending</span>
+          </div>
+          <div class="top-seller-name">${esc(topFile.title)}</div>
+          <div class="top-seller-meta">
+            <span class="pill paid">${topFile.count} ${topFile.count === 1 ? "Person Purchased" : "People Purchased"}</span>
+            <span class="pill free">Total Earned: ${inr(topFile.revenue)}</span>
+          </div>
+        </div>
+      `
+      : `
+        <div class="card top-seller-card">
+          <div class="card-head">
+            <span class="card-title" style="color:var(--brand-hi)">🏆 Most Purchased File (Top Seller)</span>
+            <span class="pill">Live Tracker</span>
+          </div>
+          <div class="top-seller-name" style="font-size:0.98rem;color:var(--muted)">Abhi tak koi Razorpay purchase record nahi hui hai.</div>
+          <p class="hint">Jaise hi koi viewer Razorpay se payment karega, sabse zyada bikne wali file yahan #1 par dikhegi.</p>
+        </div>
+      `;
+
+    const breakdownHtml = rankedFiles.length
+      ? rankedFiles.map((f, idx) => {
+          const pct = Math.round((f.count / maxCount) * 100);
+          return `
+            <div class="stat-row">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
+                <span class="stat-rank ${idx === 0 && f.count > 0 ? "gold" : ""}">#${idx + 1}</span>
+                <div style="min-width:0;flex:1">
+                  <div style="font-weight:700;overflow-wrap:anywhere">${esc(f.title)}</div>
+                  <div class="hint">${f.count} ${f.count === 1 ? "purchase" : "purchases"} · ${inr(f.revenue)} earned</div>
+                  <div class="bar-bg"><div class="bar-fill" style="width:${f.count > 0 ? Math.max(8, pct) : 0}%"></div></div>
+                </div>
+              </div>
+              <span class="pill ${f.count > 0 ? "paid" : ""}">${f.count}x Sold</span>
+            </div>
+          `;
+        }).join("")
+      : `<p class="hint" style="text-align:center;padding:12px 0">Koi file add nahi ki gayi hai.</p>`;
+
+    const feedHtml = sales.length
+      ? sales.slice(0, 15).map((s) => `
+          <div class="stat-row">
+            <div style="min-width:0;flex:1">
+              <div style="font-weight:700;overflow-wrap:anywhere">${esc(s.title || "File Purchased")}</div>
+              <div class="hint">${s.buyer ? esc(s.buyer) + " · " : ""}Razorpay <span style="font-family:monospace">${esc(s.txId || "")}</span> · ${timeAgo(s.at)}</div>
+            </div>
+            <span class="pill free">+${inr(s.amount)}</span>
+          </div>
+        `).join("")
+      : `<p class="hint" style="text-align:center;padding:12px 0">Real-time Razorpay purchase log khali hai.</p>`;
+
+    return `
+      <div class="top">
+        <div>
+          <h1>Admin Panel · ${esc(st.brand)}</h1>
+          <p>Welcome ${esc(st.owner)} · PIN Protected (4055)</p>
+        </div>
+        <span class="badge-live"><span class="dot-live"></span>Real-Time Live</span>
+      </div>
+
+      <div class="bento">
+        <div class="card">
+          <div class="card-title">Total Files / Videos</div>
+          <div class="num">${items.length}</div>
+          <p class="hint">Unlimited links supported</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Storage Limit</div>
+          <div class="num">∞</div>
+          <p class="hint">${fmtSize} local · Unlimited Cloud</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Total Purchases</div>
+          <div class="num">${totalPurchases}</div>
+          <p class="hint">Verified Razorpay unlocks</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Total Revenue</div>
+          <div class="num" style="color:var(--emerald)">${inr(totalRevenue)}</div>
+          <p class="hint">Direct Razorpay settlement</p>
+        </div>
+        <div class="card span2">
+          <div class="card-title">Quick Actions</div>
+          <div class="actions">
+            <button type="button" class="btn-main" style="width:100%" data-tab="vault">+ Create New Viewer Link</button>
+          </div>
+          <p class="hint" style="margin-top:10px">Razorpay se direct payment hone ke baad hi viewer ko video dikhega.</p>
+        </div>
+      </div>
+
+      ${topSellerHtml}
+
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title">File-Wise Purchase Analytics</h2>
+          <span class="pill paid">${rankedFiles.length} Files</span>
+        </div>
+        ${breakdownHtml}
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title">Real-Time Purchase Activity</h2>
+          <button type="button" class="btn-alt" style="min-height:30px;padding:0 10px;font-size:0.74rem" id="btn-refresh-sales">Refresh</button>
+        </div>
+        ${feedHtml}
+      </div>
+    `;
+  }
+
+  let lastDashHtml = "";
+  function renderDashOnly() {
+    if (currentTab !== "dash") return;
+    const next = renderDash();
+    if (next !== lastDashHtml) {
+      lastDashHtml = next;
+      $("#app").innerHTML = next;
+    }
+  }
+
+  function renderVault() {
+    const items = readJson(KEYS.items, []);
+    const sales = getAllSales();
+    let createdCard = "";
+    if (createdItem) {
+      const link = generateSeparateViewerLink(createdItem);
+      createdCard = `
+        <div class="card result-box">
+          <div class="card-title" style="color:var(--emerald)">Separate Viewer Landing Link Ready!</div>
+          <div style="font-weight:800;font-size:1.05rem">${esc(createdItem.title)}</div>
+          <div class="code-box">${esc(link)}</div>
+          <div class="actions">
+            <button type="button" class="btn-alt btn-primary-sm" data-copy="${esc(link)}">Copy Viewer Link</button>
+            <a class="btn-alt btn-emerald-sm" href="${esc(link)}" target="_blank" rel="noopener">Open Landing Page</a>
+          </div>
+        </div>
+      `;
+    }
+
+    const listHtml = items.length ? `<ul class="rows">${items.slice().reverse().map((it) => {
+      const link = generateSeparateViewerLink(it);
+      const count = sales.filter((s) => s.fileId === it.id || s.title === it.title).length;
+      return `
+        <li>
+          <div class="row-top">
+            <div style="font-weight:800">${esc(it.title)}</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span class="pill gold">${count} Sold</span>
+              <span class="pill ${it.access === "paid" ? "paid" : "free"}">${it.access === "paid" ? inr(it.price) : "FREE"}</span>
+            </div>
+          </div>
+          <div class="hint">${esc(it.category)} · ${it.source === "local" ? "Device Unlimited Vault" : "Cloud Unlimited Link"}</div>
+          <div class="code-box">${esc(link)}</div>
+          <div class="actions">
+            <button type="button" class="btn-alt btn-primary-sm" data-copy="${esc(link)}">Copy Separate Link</button>
+            <a class="btn-alt btn-emerald-sm" href="${esc(link)}" target="_blank" rel="noopener">Open Landing Page</a>
+            <button type="button" class="btn-alt btn-danger-sm" data-del="${esc(it.id)}">Delete</button>
+          </div>
+        </li>
+      `;
+    }).join("")}</ul>` : `<p class="hint" style="text-align:center;padding:16px 0">Abhi koi link generate nahi kiya gaya hai.</p>`;
+
+    return `
+      <div class="top">
+        <div>
+          <h1>Create Viewer Link</h1>
+          <p>Razorpay auto-unlock + Clear thumbnail landing page</p>
+        </div>
+      </div>
+
+      ${createdCard}
+
+      <div class="card">
+        <form class="form" id="create-form">
+          <label class="field">
+            <span>Video / Movie / File Title</span>
+            <input id="f-title" type="text" placeholder="e.g. Full Movie 4K / Premium Bundle" required>
+          </label>
+
+          <label class="field">
+            <span>Category</span>
+            <select id="f-cat">
+              <option value="Full Movie / Video">Full Movie / Video</option>
+              <option value="Exclusive Reel / Clip">Exclusive Reel / Clip</option>
+              <option value="Course / Tutorial">Course / Tutorial</option>
+              <option value="ZIP / APK / Software">ZIP / APK / Software</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Thumbnail Image URL (100% Clear Visible)</span>
+            <input id="f-thumb" type="url" placeholder="https://... (YouTube link par auto-thumbnail bhi aata hai)">
+          </label>
+
+          <div class="field">
+            <span>Storage Source (Unlimited)</span>
+            <div class="seg2">
+              <button type="button" class="seg-btn" aria-pressed="${sourceType === "cloud"}" data-src="cloud">Cloud Link (Unlimited)</button>
+              <button type="button" class="seg-btn" aria-pressed="${sourceType === "local"}" data-src="local">Device File (No Limit)</button>
+            </div>
+          </div>
+
+          <div id="box-cloud" ${sourceType !== "cloud" ? "hidden" : ""}>
+            <label class="field">
+              <span>Google Drive / TeraBox / YouTube Unlisted / Direct MP4 URL</span>
+              <input id="f-url" type="url" placeholder="https://...">
+            </label>
+          </div>
+
+          <div id="box-local" ${sourceType !== "local" ? "hidden" : ""}>
+            <label class="drop">
+              <span>Select Any Size File (Unlimited Device Storage)</span>
+              <input id="f-file" type="file" accept="*/*">
+              <small id="file-info">Koi bhi size limit nahi hai.</small>
+            </label>
+          </div>
+
+          <div class="field">
+            <span>Access Type</span>
+            <div class="seg2">
+              <button type="button" class="seg-btn" aria-pressed="${accessType === "paid"}" data-acc="paid">Razorpay Paid Unlock (₹)</button>
+              <button type="button" class="seg-btn" aria-pressed="${accessType === "free"}" data-acc="free">Free Access</button>
+            </div>
+          </div>
+
+          <div id="box-price" ${accessType !== "paid" ? "hidden" : ""}>
+            <label class="field">
+              <span>Price (₹ INR)</span>
+              <input id="f-price" type="number" min="1" placeholder="29">
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Landing Page Description</span>
+            <textarea id="f-desc" rows="2" placeholder="Viewer ko landing page par kya details dikhani hain..."></textarea>
+          </label>
+
+          <p class="msg" id="form-msg"></p>
+          <button type="submit" class="btn-main" id="btn-gen">Generate Separate Viewer Link</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-title">All Generated Links (${items.length})</div>
+        ${listHtml}
+      </div>
+    `;
+  }
+
+  function renderSettings() {
+    const st = getSettings();
+    return `
+      <div class="top">
+        <div>
+          <h1>Setup, Security & Razorpay</h1>
+          <p>Admin PIN, WhatsApp Support aur Razorpay Key configured hain</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <form class="form" id="settings-form">
+          <label class="field">
+            <span>Brand / Channel Name</span>
+            <input id="s-brand" type="text" value="${esc(st.brand)}">
+          </label>
+          <label class="field">
+            <span>Admin Name</span>
+            <input id="s-owner" type="text" value="${esc(st.owner)}">
+          </label>
+          <label class="field">
+            <span>Admin Panel Security PIN (Default: 4055)</span>
+            <input id="s-pin" type="text" inputmode="numeric" maxlength="6" value="${esc(st.adminPin)}">
+          </label>
+          <label class="field">
+            <span>WhatsApp Support Number (Default: 9421351153)</span>
+            <input id="s-wa" type="tel" maxlength="15" value="${esc(st.whatsapp)}">
+            <small class="hint">Viewer landing page par WhatsApp logo button is number par message bhejega.</small>
+          </label>
+          <label class="field">
+            <span>Hosted Viewer Landing Page URL</span>
+            <input id="s-vurl" type="url" value="${esc(st.viewerBaseUrl)}" placeholder="https://your-site.netlify.app/index.html">
+          </label>
+          <label class="field">
+            <span>Razorpay Key ID (Test ya Live Key — Direct Auto-Unlock)</span>
+            <input id="s-rzp" type="text" value="${esc(st.rzpKey)}" placeholder="rzp_test_... or rzp_live_...">
+            <small class="hint">Razorpay ke andar UPI, Cards, Netbanking sab chalta hai. Payment verified hone par hi video unlock hoga.</small>
+          </label>
+          <label class="field">
+            <span>Free Google Sheet / Webhook URL for Multi-Device Real-Time Sales (Optional · ₹0)</span>
+            <input id="s-wh" type="url" value="${esc(st.webhookUrl)}" placeholder="https://script.google.com/macros/s/.../exec">
+          </label>
+          <p class="msg" id="set-msg"></p>
+          <button type="submit" class="btn-main">Save All Settings</button>
+        </form>
+      </div>
+    `;
+  }
+
+  function switchTab(t) {
+    currentTab = t;
+    document.querySelectorAll(".dock-item").forEach((b) => {
+      if (b.dataset.tab === t) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
+    if (t === "dash") {
+      lastDashHtml = renderDash();
+      $("#app").innerHTML = lastDashHtml;
+    } else if (t === "vault") $("#app").innerHTML = renderVault();
+    else $("#app").innerHTML = renderSettings();
+  }
+
+  async function copyStr(txt, btn) {
+    try { await navigator.clipboard.writeText(txt); } catch (e) {
+      const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    const old = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }
+
+  document.addEventListener("click", async (e) => {
+    const tab = e.target.closest("[data-tab]");
+    if (tab) return switchTab(tab.dataset.tab);
+
+    if (e.target.id === "btn-refresh-sales") {
+      await pullRemoteSales();
+      renderDashOnly();
+    }
+
+    const src = e.target.closest("[data-src]");
+    if (src) {
+      sourceType = src.dataset.src;
+      document.querySelectorAll("[data-src]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.src === sourceType)));
+      $("#box-cloud").hidden = sourceType !== "cloud";
+      $("#box-local").hidden = sourceType !== "local";
+    }
+
+    const acc = e.target.closest("[data-acc]");
+    if (acc) {
+      accessType = acc.dataset.acc;
+      document.querySelectorAll("[data-acc]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.acc === accessType)));
+      $("#box-price").hidden = accessType !== "paid";
+    }
+
+    const cp = e.target.closest("[data-copy]");
+    if (cp) copyStr(cp.dataset.copy, cp);
+
+    const del = e.target.closest("[data-del]");
+    if (del) {
+      const id = del.dataset.del;
+      await removeBlob(id);
+      const list = readJson(KEYS.items, []).filter((x) => x.id !== id);
+      writeJson(KEYS.items, list);
+      if (createdItem && createdItem.id === id) createdItem = null;
+      switchTab("vault");
+    }
+  });
+
+  document.addEventListener("change", (e) => {
+    if (e.target.id === "f-file") {
+      const f = e.target.files[0];
+      if (f) {
+        const sz = f.size > 1073741824 ? (f.size / 1073741824).toFixed(2) + " GB" : (f.size / 1048576).toFixed(1) + " MB";
+        $("#file-info").textContent = `Selected: ${f.name} (${sz})`;
+      }
+    }
+  });
+
+  document.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (e.target.id === "create-form") {
+      const title = $("#f-title").value.trim();
+      const category = $("#f-cat").value;
+      const thumb = $("#f-thumb").value.trim();
+      const desc = $("#f-desc").value.trim();
+      const price = accessType === "paid" ? Math.round(Number($("#f-price").value)) : 0;
+      const msg = $("#form-msg");
+
+      if (!title) { msg.className = "msg err"; msg.textContent = "Title likhein."; return; }
+      if (accessType === "paid" && !(price >= 1)) { msg.className = "msg err"; msg.textContent = "Valid price dalein."; return; }
+
+      const id = "v_" + Date.now().toString(36);
+      if (sourceType === "cloud") {
+        const url = $("#f-url").value.trim();
+        if (!/^https:\/\//i.test(url)) { msg.className = "msg err"; msg.textContent = "Valid https:// link paste karein."; return; }
+        const item = { id, title, category, thumb, desc, source: "cloud", url, access: accessType, price, size: 0 };
+        const list = readJson(KEYS.items, []);
+        list.push(item);
+        writeJson(KEYS.items, list);
+        createdItem = item;
+        switchTab("vault");
+      } else {
+        const file = $("#f-file").files[0];
+        if (!file) { msg.className = "msg err"; msg.textContent = "File select karein."; return; }
+        const btn = $("#btn-gen");
+        btn.disabled = true;
+        msg.className = "msg";
+        msg.textContent = "Unlimited Vault mein save ho raha hai...";
+        try {
+          await saveBlob(id, file);
+          const item = { id, title, category, thumb, desc, source: "local", fileName: file.name, fileType: file.type, size: file.size, access: accessType, price };
+          const list = readJson(KEYS.items, []);
+          list.push(item);
+          writeJson(KEYS.items, list);
+          createdItem = item;
+          switchTab("vault");
+        } catch (err) {
+          btn.disabled = false;
+          msg.className = "msg err";
+          msg.textContent = "Device memory full hai. Cloud link option use karein.";
+        }
+      }
+    } else if (e.target.id === "settings-form") {
+      const next = {
+        brand: $("#s-brand").value.trim() || "CloudVault",
+        owner: $("#s-owner").value.trim() || "Ranjit",
+        adminPin: $("#s-pin").value.trim() || "4055",
+        whatsapp: $("#s-wa").value.trim() || "9421351153",
+        viewerBaseUrl: $("#s-vurl").value.trim(),
+        rzpKey: $("#s-rzp").value.trim(),
+        webhookUrl: $("#s-wh").value.trim()
+      };
+      writeJson(KEYS.settings, next);
+      const m = $("#set-msg");
+      m.className = "msg";
+      m.textContent = "Settings saved successfully!";
+    }
+  });
+
+  window.addEventListener("storage", (e) => {
+    if (e.key === KEYS.sales || e.key === KEYS.items) renderDashOnly();
+  });
+  setInterval(renderDashOnly, 2000);
+  setInterval(pullRemoteSales, 10000);
+
+  switchTab("dash");
+  pullRemoteSales();
+</script>
+</body>
+</html>
